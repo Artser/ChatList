@@ -16,9 +16,13 @@ ENV/
 
 # Environment
 .env
+.env.local
 
 # Database
 *.db
+
+# Logs
+logs/
 
 # IDE
 .vscode/

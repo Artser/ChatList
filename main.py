@@ -142,6 +142,12 @@ class MainWindow(QMainWindow):
         exit_action.triggered.connect(self.close)
         file_menu.addAction(exit_action)
         
+        # Меню Настройки
+        settings_menu = menubar.addMenu("Настройки")
+        settings_action = QAction("Настройки...", self)
+        settings_action.triggered.connect(self.show_settings)
+        settings_menu.addAction(settings_action)
+        
         # Меню Справка
         help_menu = menubar.addMenu("Справка")
         about_action = QAction("О программе", self)
@@ -167,9 +173,16 @@ class MainWindow(QMainWindow):
         prompt_select_layout = QHBoxLayout()
         prompt_select_label = QLabel("Выбрать сохраненный промт:")
         self.prompt_combo = QComboBox()
+        self.prompt_combo.setEditable(True)  # Делаем поиск возможным
+        self.prompt_combo.setInsertPolicy(QComboBox.NoInsert)
         self.prompt_combo.currentIndexChanged.connect(self.on_prompt_selected)
         prompt_select_layout.addWidget(prompt_select_label)
         prompt_select_layout.addWidget(self.prompt_combo)
+        
+        # Поиск промтов
+        search_prompt_button = QPushButton("Поиск")
+        search_prompt_button.clicked.connect(self.search_prompts_dialog)
+        prompt_select_layout.addWidget(search_prompt_button)
         prompt_select_layout.addStretch()
         prompt_layout.addLayout(prompt_select_layout)
         
@@ -223,6 +236,7 @@ class MainWindow(QMainWindow):
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.results_table.setSortingEnabled(True)  # Включаем сортировку
         results_layout.addWidget(self.results_table)
         
         # Кнопки для работы с результатами
@@ -301,6 +315,9 @@ class MainWindow(QMainWindow):
         self.saved_results_table.horizontalHeader().setStretchLastSection(True)
         self.saved_results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.saved_results_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)
+        self.saved_results_table.setSortingEnabled(True)  # Включаем сортировку
+        self.saved_results_table.setContextMenuPolicy(Qt.CustomContextMenu)
+        self.saved_results_table.customContextMenuRequested.connect(self.show_results_context_menu)
         layout.addWidget(self.saved_results_table)
         
         return widget
@@ -592,6 +609,133 @@ class MainWindow(QMainWindow):
         """Экспортирует данные в JSON."""
         with open(file_path, 'w', encoding='utf-8') as f:
             json.dump(data, f, ensure_ascii=False, indent=2)
+    
+    def search_prompts_dialog(self):
+        """Открывает диалог поиска промтов."""
+        from PyQt5.QtWidgets import QInputDialog
+        query, ok = QInputDialog.getText(self, "Поиск промтов", "Введите текст для поиска:")
+        if ok and query:
+            prompts = db.search_prompts(query)
+            if prompts:
+                # Обновляем список промтов
+                self.prompt_combo.clear()
+                self.prompt_combo.addItem("-- Новый промт --", None)
+                for prompt in prompts:
+                    display_text = f"{prompt['prompt'][:50]}... ({prompt['date']})" if len(prompt['prompt']) > 50 else prompt['prompt']
+                    self.prompt_combo.addItem(display_text, prompt['id'])
+                QMessageBox.information(self, "Результаты поиска", f"Найдено промтов: {len(prompts)}")
+            else:
+                QMessageBox.information(self, "Результаты поиска", "Промты не найдены")
+    
+    def show_models_context_menu(self, position):
+        """Показывает контекстное меню для таблицы моделей."""
+        menu = QMenu(self)
+        
+        edit_action = QAction("Редактировать", self)
+        edit_action.triggered.connect(self.edit_model)
+        menu.addAction(edit_action)
+        
+        delete_action = QAction("Удалить", self)
+        delete_action.triggered.connect(self.delete_model)
+        menu.addAction(delete_action)
+        
+        menu.addSeparator()
+        
+        refresh_action = QAction("Обновить", self)
+        refresh_action.triggered.connect(self.load_models)
+        menu.addAction(refresh_action)
+        
+        menu.exec_(self.models_table.viewport().mapToGlobal(position))
+    
+    def show_results_context_menu(self, position):
+        """Показывает контекстное меню для таблицы результатов."""
+        menu = QMenu(self)
+        
+        export_action = QAction("Экспортировать", self)
+        export_action.triggered.connect(self.export_results)
+        menu.addAction(export_action)
+        
+        menu.addSeparator()
+        
+        delete_action = QAction("Удалить", self)
+        delete_action.triggered.connect(self.delete_selected_result)
+        menu.addAction(delete_action)
+        
+        menu.exec_(self.saved_results_table.viewport().mapToGlobal(position))
+    
+    def delete_selected_result(self):
+        """Удаляет выбранный результат."""
+        selected_rows = self.saved_results_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите результат для удаления")
+            return
+        
+        row = selected_rows[0].row()
+        result_id_item = self.saved_results_table.item(row, 0)
+        if not result_id_item:
+            # Нужно получить ID из БД
+            prompt_text = self.saved_results_table.item(row, 1).text()
+            results = db.search_results(prompt_text)
+            if results:
+                result_id = results[0].get('id')
+            else:
+                QMessageBox.warning(self, "Ошибка", "Не удалось найти результат")
+                return
+        else:
+            # Получаем ID из данных
+            results = db.get_all_results()
+            if row < len(results):
+                result_id = results[row]['id']
+            else:
+                return
+        
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            "Удалить этот результат?",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            db.delete_result(result_id)
+            self.load_saved_results()
+            QMessageBox.information(self, "Успех", "Результат удален")
+    
+    def show_settings(self):
+        """Показывает диалог настроек."""
+        from PyQt5.QtWidgets import QInputDialog
+        
+        # Получаем текущие настройки
+        timeout = db.get_setting('default_timeout', '30')
+        max_retries = db.get_setting('max_retries', '3')
+        
+        # Диалог для таймаута
+        timeout_str, ok1 = QInputDialog.getText(
+            self, "Настройки", 
+            "Таймаут запросов (секунды):",
+            text=str(timeout)
+        )
+        
+        if ok1:
+            try:
+                timeout_val = int(timeout_str)
+                db.set_setting('default_timeout', str(timeout_val))
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", "Таймаут должен быть числом")
+        
+        # Диалог для количества повторов
+        retries_str, ok2 = QInputDialog.getText(
+            self, "Настройки",
+            "Максимальное количество повторов:",
+            text=str(max_retries)
+        )
+        
+        if ok2:
+            try:
+                retries_val = int(retries_str)
+                db.set_setting('max_retries', str(retries_val))
+                QMessageBox.information(self, "Успех", "Настройки сохранены")
+            except ValueError:
+                QMessageBox.warning(self, "Ошибка", "Количество повторов должно быть числом")
     
     def show_about(self):
         """Показывает диалог 'О программе'."""

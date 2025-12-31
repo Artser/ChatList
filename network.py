@@ -14,7 +14,24 @@ from dotenv import load_dotenv
 load_dotenv()
 
 # Настройка логирования
-logging.basicConfig(level=logging.INFO)
+import os
+from datetime import datetime
+
+# Создаем директорию для логов, если её нет
+log_dir = "logs"
+if not os.path.exists(log_dir):
+    os.makedirs(log_dir)
+
+# Настройка логирования с записью в файл
+log_file = os.path.join(log_dir, f"chatlist_{datetime.now().strftime('%Y%m%d')}.log")
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    handlers=[
+        logging.FileHandler(log_file, encoding='utf-8'),
+        logging.StreamHandler()  # Также выводим в консоль
+    ]
+)
 logger = logging.getLogger(__name__)
 
 
@@ -173,6 +190,36 @@ class GroqClient(BaseAPIClient):
         return response_data["choices"][0]["message"]["content"]
 
 
+class OpenRouterClient(BaseAPIClient):
+    """Клиент для OpenRouter API."""
+    
+    def _get_headers(self) -> Dict[str, str]:
+        """Заголовки для OpenRouter."""
+        return {
+            "Content-Type": "application/json",
+            "Authorization": f"Bearer {self.api_key}",
+            "HTTP-Referer": "https://github.com/Artser/ChatList",  # Опционально, для статистики
+            "X-Title": "ChatList"  # Опционально
+        }
+    
+    def _prepare_request_data(self, prompt: str, model_name: Optional[str] = None) -> Dict[str, Any]:
+        """Подготавливает данные для OpenRouter API."""
+        # OpenRouter требует указания модели в формате provider/model-name
+        # Если модель не указана, используем популярную по умолчанию
+        model = model_name or "openai/gpt-4"
+        return {
+            "model": model,
+            "messages": [
+                {"role": "user", "content": prompt}
+            ],
+            "temperature": 0.7
+        }
+    
+    def _extract_response(self, response_data: Dict[str, Any]) -> str:
+        """Извлекает ответ из OpenRouter API."""
+        return response_data["choices"][0]["message"]["content"]
+
+
 def get_api_key(api_id: str) -> Optional[str]:
     """
     Получает API-ключ из переменных окружения.
@@ -213,7 +260,9 @@ def create_client(model_data: Dict[str, Any]) -> Optional[BaseAPIClient]:
         return None
     
     # Определяем тип клиента по URL или имени
-    if 'openai' in api_url.lower() or 'openai' in name:
+    if 'openrouter' in api_url.lower() or 'openrouter' in name:
+        return OpenRouterClient(api_key, api_url)
+    elif 'openai' in api_url.lower() or 'openai' in name:
         return OpenAIClient(api_key, api_url)
     elif 'deepseek' in api_url.lower() or 'deepseek' in name:
         return DeepSeekClient(api_key, api_url)
