@@ -7,4 +7,4 @@ Write-Host "Сборка исполняемого файла..." -ForegroundColo
 pyinstaller --onefile --windowed --name "ChatList" --icon=NONE main.py
 
 Write-Host ""
-Write-Host "Готово! Исполняемый файл: dist\ChatList.exe" -ForegroundColor Green
+Write-Host "Готово! Исполняемый файл находится в папке dist" -ForegroundColor Green

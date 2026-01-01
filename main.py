@@ -8,16 +8,19 @@ from typing import List, Dict, Optional
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
-    QCheckBox, QComboBox, QLabel, QSplitter, QTabWidget, QMessageBox,
+    QCheckBox, QComboBox, QLabel, QTabWidget, QMessageBox,
     QDialog, QDialogButtonBox, QFormLayout, QProgressBar, QHeaderView,
-    QMenu, QAction, QFileDialog
+    QMenu, QAction, QFileDialog, QInputDialog
 )
-from PyQt5.QtCore import Qt, QThread, pyqtSignal, QTimer
+from PyQt5.QtCore import Qt, QThread, pyqtSignal
 from PyQt5.QtGui import QFont
 
 import db
 import models
 import network
+import logging
+
+logger = logging.getLogger(__name__)
 
 
 class RequestThread(QThread):
@@ -230,13 +233,16 @@ class MainWindow(QMainWindow):
         
         # Таблица результатов
         self.results_table = QTableWidget()
-        self.results_table.setColumnCount(3)
-        self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Выбрать"])
-        self.results_table.horizontalHeader().setStretchLastSection(True)
+        self.results_table.setColumnCount(4)
+        self.results_table.setHorizontalHeaderLabels(["Модель", "Ответ", "Открыть", "Выбрать"])
+        self.results_table.horizontalHeader().setStretchLastSection(False)
         self.results_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
         self.results_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.Stretch)
         self.results_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.ResizeToContents)
+        self.results_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
         self.results_table.setSortingEnabled(True)  # Включаем сортировку
+        self.results_table.verticalHeader().setDefaultSectionSize(80)  # Увеличиваем высоту строк
+        self.results_table.setWordWrap(True)  # Включаем перенос слов
         results_layout.addWidget(self.results_table)
         
         # Кнопки для работы с результатами
@@ -432,12 +438,160 @@ class MainWindow(QMainWindow):
             if error:
                 response = f"Ошибка: {error}"
             
+            # Колонка "Модель"
             self.results_table.setItem(row, 0, QTableWidgetItem(model_name))
-            self.results_table.setItem(row, 1, QTableWidgetItem(response))
             
+            # Колонка "Ответ" - многострочный текст
+            response_item = QTableWidgetItem(response)
+            response_item.setFlags(response_item.flags() | Qt.TextWordWrap)  # Включаем перенос слов
+            self.results_table.setItem(row, 1, response_item)
+            
+            # Колонка "Просмотр" - кнопка для просмотра полного ответа в markdown
+            view_button = QPushButton("Открыть")
+            view_button.clicked.connect(lambda checked, r=row: self.view_full_response(r))
+            self.results_table.setCellWidget(row, 2, view_button)
+            
+            # Колонка "Выбрать" - чекбокс
             checkbox = QCheckBox()
             checkbox.setChecked(True)  # По умолчанию выбрано
-            self.results_table.setCellWidget(row, 2, checkbox)
+            self.results_table.setCellWidget(row, 3, checkbox)
+    
+    def view_full_response(self, row: int):
+        """Открывает диалог для просмотра полного ответа в форматированном markdown."""
+        if row < 0 or row >= len(self.temp_results):
+            return
+        
+        result = self.temp_results[row]
+        model_name = result.get('model_name', 'Unknown')
+        response = result.get('response', '')
+        error = result.get('error')
+        
+        if error:
+            response = f"Ошибка: {error}"
+        
+        # Создаем диалог для просмотра
+        dialog = QDialog(self)
+        dialog.setWindowTitle(f"Ответ от {model_name}")
+        dialog.setMinimumSize(800, 600)
+        
+        layout = QVBoxLayout()
+        
+        # Метка с названием модели
+        model_label = QLabel(f"<b>Модель:</b> {model_name}")
+        model_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(model_label)
+        
+        # Текстовое поле с ответом в формате markdown (только для чтения)
+        text_edit = QTextEdit()
+        text_edit.setReadOnly(True)
+        text_edit.setFont(QFont("Arial", 10))
+        
+        # Конвертируем markdown в HTML для форматированного отображения
+        try:
+            import markdown
+            # Конвертируем markdown в HTML
+            html_content = markdown.markdown(
+                response,
+                extensions=['extra', 'codehilite', 'nl2br'],
+                extension_configs={
+                    'codehilite': {
+                        'css_class': 'highlight',
+                        'use_pygments': False
+                    }
+                }
+            )
+            
+            # Добавляем базовые стили для улучшения отображения
+            styled_html = f"""
+            <html>
+            <head>
+                <style>
+                    body {{
+                        font-family: Arial, sans-serif;
+                        font-size: 11pt;
+                        line-height: 1.6;
+                        padding: 10px;
+                        color: #333;
+                    }}
+                    h1, h2, h3, h4, h5, h6 {{
+                        color: #2c3e50;
+                        margin-top: 1em;
+                        margin-bottom: 0.5em;
+                    }}
+                    code {{
+                        background-color: #f4f4f4;
+                        padding: 2px 4px;
+                        border-radius: 3px;
+                        font-family: 'Courier New', monospace;
+                        font-size: 0.9em;
+                    }}
+                    pre {{
+                        background-color: #f4f4f4;
+                        padding: 10px;
+                        border-radius: 5px;
+                        overflow-x: auto;
+                        border-left: 3px solid #3498db;
+                    }}
+                    pre code {{
+                        background-color: transparent;
+                        padding: 0;
+                    }}
+                    blockquote {{
+                        border-left: 4px solid #3498db;
+                        margin: 0;
+                        padding-left: 15px;
+                        color: #555;
+                    }}
+                    ul, ol {{
+                        margin: 0.5em 0;
+                        padding-left: 2em;
+                    }}
+                    a {{
+                        color: #3498db;
+                        text-decoration: none;
+                    }}
+                    a:hover {{
+                        text-decoration: underline;
+                    }}
+                    table {{
+                        border-collapse: collapse;
+                        width: 100%;
+                        margin: 1em 0;
+                    }}
+                    th, td {{
+                        border: 1px solid #ddd;
+                        padding: 8px;
+                        text-align: left;
+                    }}
+                    th {{
+                        background-color: #f2f2f2;
+                        font-weight: bold;
+                    }}
+                </style>
+            </head>
+            <body>
+                {html_content}
+            </body>
+            </html>
+            """
+            text_edit.setHtml(styled_html)
+        except ImportError:
+            # Если markdown не установлен, отображаем как обычный текст
+            text_edit.setPlainText(response)
+        except Exception as e:
+            # В случае ошибки конвертации, отображаем как обычный текст
+            logger.error(f"Ошибка конвертации markdown: {e}")
+            text_edit.setPlainText(response)
+        
+        layout.addWidget(text_edit)
+        
+        # Кнопка закрытия
+        buttons = QDialogButtonBox(QDialogButtonBox.Close)
+        buttons.rejected.connect(dialog.close)
+        layout.addWidget(buttons)
+        
+        dialog.setLayout(layout)
+        dialog.exec_()
     
     def save_selected_results(self):
         """Сохраняет выбранные результаты в БД."""
@@ -447,7 +601,7 @@ class MainWindow(QMainWindow):
         
         selected_results = []
         for row in range(self.results_table.rowCount()):
-            checkbox = self.results_table.cellWidget(row, 2)
+            checkbox = self.results_table.cellWidget(row, 3)  # Чекбокс теперь в колонке 3
             if checkbox and checkbox.isChecked():
                 result = self.temp_results[row]
                 model_id = result.get('model_id')
