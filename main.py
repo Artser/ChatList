@@ -4,7 +4,7 @@
 """
 import sys
 import json
-from typing import List, Dict, Optional
+from typing import List, Dict, Optional, Tuple
 from PyQt5.QtWidgets import (
     QApplication, QMainWindow, QWidget, QVBoxLayout, QHBoxLayout,
     QTextEdit, QLineEdit, QPushButton, QTableWidget, QTableWidgetItem,
@@ -36,6 +36,98 @@ class RequestThread(QThread):
         """Выполняет запросы к моделям."""
         results = network.send_prompt_to_models_async(self.prompt, self.models_list)
         self.finished.emit(results)
+
+
+class PromptDialog(QDialog):
+    """Диалог для добавления/редактирования промта."""
+    
+    def __init__(self, parent=None, prompt_data: Optional[Dict] = None):
+        super().__init__(parent)
+        self.prompt_data = prompt_data
+        self.setWindowTitle("Редактировать промт" if prompt_data else "Создать промт")
+        self.setMinimumSize(500, 300)
+        
+        layout = QVBoxLayout()
+        
+        # Поле для промта
+        prompt_label = QLabel("Промт:")
+        prompt_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(prompt_label)
+        
+        self.prompt_edit = QTextEdit()
+        self.prompt_edit.setPlaceholderText("Введите текст промта...")
+        if prompt_data:
+            self.prompt_edit.setText(prompt_data.get('prompt', ''))
+        layout.addWidget(self.prompt_edit)
+        
+        # Поле для тегов
+        tags_label = QLabel("Теги (через запятую):")
+        layout.addWidget(tags_label)
+        
+        self.tags_edit = QLineEdit()
+        self.tags_edit.setPlaceholderText("например: наука, физика")
+        if prompt_data:
+            self.tags_edit.setText(prompt_data.get('tags', ''))
+        layout.addWidget(self.tags_edit)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        
+        self.setLayout(layout)
+    
+    def get_data(self) -> Tuple[str, Optional[str]]:
+        """Возвращает данные промта из формы: (prompt, tags)."""
+        prompt = self.prompt_edit.toPlainText().strip()
+        tags = self.tags_edit.text().strip() or None
+        return prompt, tags
+
+
+class PromptDialog(QDialog):
+    """Диалог для добавления/редактирования промта."""
+    
+    def __init__(self, parent=None, prompt_data: Optional[Dict] = None):
+        super().__init__(parent)
+        self.prompt_data = prompt_data
+        self.setWindowTitle("Редактировать промт" if prompt_data else "Создать промт")
+        self.setMinimumSize(500, 300)
+        
+        layout = QVBoxLayout()
+        
+        # Поле для промта
+        prompt_label = QLabel("Промт:")
+        prompt_label.setFont(QFont("Arial", 10, QFont.Bold))
+        layout.addWidget(prompt_label)
+        
+        self.prompt_edit = QTextEdit()
+        self.prompt_edit.setPlaceholderText("Введите текст промта...")
+        if prompt_data:
+            self.prompt_edit.setText(prompt_data.get('prompt', ''))
+        layout.addWidget(self.prompt_edit)
+        
+        # Поле для тегов
+        tags_label = QLabel("Теги (через запятую):")
+        layout.addWidget(tags_label)
+        
+        self.tags_edit = QLineEdit()
+        self.tags_edit.setPlaceholderText("например: наука, физика")
+        if prompt_data:
+            self.tags_edit.setText(prompt_data.get('tags', ''))
+        layout.addWidget(self.tags_edit)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(self.accept)
+        buttons.rejected.connect(self.reject)
+        layout.addWidget(buttons)
+        
+        self.setLayout(layout)
+    
+    def get_data(self) -> Tuple[str, Optional[str]]:
+        """Возвращает данные промта из формы: (prompt, tags)."""
+        prompt = self.prompt_edit.toPlainText().strip()
+        tags = self.tags_edit.text().strip() or None
+        return prompt, tags
 
 
 class ModelDialog(QDialog):
@@ -100,6 +192,7 @@ class MainWindow(QMainWindow):
         
         self.init_ui()
         self.load_prompts()
+        self.load_prompts_table()
         self.load_models()
         self.load_saved_results()
     
@@ -119,11 +212,15 @@ class MainWindow(QMainWindow):
         request_tab = self.create_request_tab()
         tabs.addTab(request_tab, "Запросы")
         
-        # Вкладка 2: Управление моделями
+        # Вкладка 2: Управление промтами
+        prompts_tab = self.create_prompts_tab()
+        tabs.addTab(prompts_tab, "Промты")
+        
+        # Вкладка 3: Управление моделями
         models_tab = self.create_models_tab()
         tabs.addTab(models_tab, "Модели")
         
-        # Вкладка 3: Сохраненные результаты
+        # Вкладка 4: Сохраненные результаты
         results_tab = self.create_results_tab()
         tabs.addTab(results_tab, "Результаты")
         
@@ -260,6 +357,61 @@ class MainWindow(QMainWindow):
         
         return widget
     
+    def create_prompts_tab(self) -> QWidget:
+        """Создает вкладку для управления промтами."""
+        widget = QWidget()
+        layout = QVBoxLayout()
+        widget.setLayout(layout)
+        
+        # Кнопки управления
+        buttons_layout = QHBoxLayout()
+        add_prompt_button = QPushButton("Создать")
+        add_prompt_button.clicked.connect(self.add_prompt)
+        edit_prompt_button = QPushButton("Редактировать")
+        edit_prompt_button.clicked.connect(self.edit_prompt)
+        delete_prompt_button = QPushButton("Удалить")
+        delete_prompt_button.clicked.connect(self.delete_prompt)
+        refresh_button = QPushButton("Обновить")
+        refresh_button.clicked.connect(self.load_prompts_table)
+        
+        buttons_layout.addWidget(add_prompt_button)
+        buttons_layout.addWidget(edit_prompt_button)
+        buttons_layout.addWidget(delete_prompt_button)
+        buttons_layout.addWidget(refresh_button)
+        buttons_layout.addStretch()
+        layout.addLayout(buttons_layout)
+        
+        # Поиск
+        search_layout = QHBoxLayout()
+        search_label = QLabel("Поиск:")
+        self.prompts_search_edit = QLineEdit()
+        self.prompts_search_edit.setPlaceholderText("Поиск по тексту промта или тегам...")
+        self.prompts_search_edit.textChanged.connect(self.search_prompts_table)
+        search_button = QPushButton("Найти")
+        search_button.clicked.connect(self.search_prompts_table)
+        search_layout.addWidget(search_label)
+        search_layout.addWidget(self.prompts_search_edit)
+        search_layout.addWidget(search_button)
+        layout.addLayout(search_layout)
+        
+        # Таблица промтов
+        self.prompts_table = QTableWidget()
+        self.prompts_table.setColumnCount(4)
+        self.prompts_table.setHorizontalHeaderLabels(["ID", "Дата", "Промт", "Теги"])
+        self.prompts_table.horizontalHeader().setStretchLastSection(True)
+        self.prompts_table.horizontalHeader().setSectionResizeMode(0, QHeaderView.ResizeToContents)
+        self.prompts_table.horizontalHeader().setSectionResizeMode(1, QHeaderView.ResizeToContents)
+        self.prompts_table.horizontalHeader().setSectionResizeMode(2, QHeaderView.Stretch)
+        self.prompts_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.ResizeToContents)
+        self.prompts_table.setSelectionBehavior(QTableWidget.SelectRows)
+        self.prompts_table.setSelectionMode(QTableWidget.SingleSelection)
+        self.prompts_table.setSortingEnabled(True)
+        self.prompts_table.setWordWrap(True)
+        self.prompts_table.verticalHeader().setDefaultSectionSize(60)
+        layout.addWidget(self.prompts_table)
+        
+        return widget
+    
     def create_models_tab(self) -> QWidget:
         """Создает вкладку для управления моделями."""
         widget = QWidget()
@@ -337,6 +489,21 @@ class MainWindow(QMainWindow):
             display_text = f"{prompt['prompt'][:50]}... ({prompt['date']})" if len(prompt['prompt']) > 50 else prompt['prompt']
             self.prompt_combo.addItem(display_text, prompt['id'])
     
+    def load_prompts_table(self):
+        """Загружает промты в таблицу."""
+        prompts = db.get_all_prompts()
+        self.prompts_table.setRowCount(len(prompts))
+        
+        for row, prompt in enumerate(prompts):
+            self.prompts_table.setItem(row, 0, QTableWidgetItem(str(prompt['id'])))
+            self.prompts_table.setItem(row, 1, QTableWidgetItem(prompt.get('date', '')))
+            
+            prompt_item = QTableWidgetItem(prompt.get('prompt', ''))
+            prompt_item.setFlags(prompt_item.flags() | Qt.TextWordWrap)
+            self.prompts_table.setItem(row, 2, prompt_item)
+            
+            self.prompts_table.setItem(row, 3, QTableWidgetItem(prompt.get('tags', '')))
+    
     def load_models(self):
         """Загружает модели в таблицу."""
         models_list = db.get_all_models()
@@ -383,6 +550,7 @@ class MainWindow(QMainWindow):
         tags = self.tags_edit.text().strip() or None
         db.create_prompt(prompt_text, tags)
         self.load_prompts()
+        self.load_prompts_table()
         QMessageBox.information(self, "Успех", "Промт сохранен")
     
     def send_request(self):
@@ -780,6 +948,82 @@ class MainWindow(QMainWindow):
                 QMessageBox.information(self, "Результаты поиска", f"Найдено промтов: {len(prompts)}")
             else:
                 QMessageBox.information(self, "Результаты поиска", "Промты не найдены")
+    
+    def search_prompts_table(self):
+        """Поиск промтов в таблице."""
+        query = self.prompts_search_edit.text().strip()
+        if query:
+            prompts = db.search_prompts(query)
+        else:
+            prompts = db.get_all_prompts()
+        
+        self.prompts_table.setRowCount(len(prompts))
+        for row, prompt in enumerate(prompts):
+            self.prompts_table.setItem(row, 0, QTableWidgetItem(str(prompt['id'])))
+            self.prompts_table.setItem(row, 1, QTableWidgetItem(prompt.get('date', '')))
+            
+            prompt_item = QTableWidgetItem(prompt.get('prompt', ''))
+            prompt_item.setFlags(prompt_item.flags() | Qt.TextWordWrap)
+            self.prompts_table.setItem(row, 2, prompt_item)
+            
+            self.prompts_table.setItem(row, 3, QTableWidgetItem(prompt.get('tags', '')))
+    
+    def add_prompt(self):
+        """Добавляет новый промт."""
+        dialog = PromptDialog(self)
+        if dialog.exec_() == QDialog.Accepted:
+            prompt_text, tags = dialog.get_data()
+            if prompt_text:
+                db.create_prompt(prompt_text, tags)
+                self.load_prompts()
+                self.load_prompts_table()
+                QMessageBox.information(self, "Успех", "Промт создан")
+    
+    def edit_prompt(self):
+        """Редактирует выбранный промт."""
+        selected_rows = self.prompts_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите промт для редактирования")
+            return
+        
+        row = selected_rows[0].row()
+        prompt_id = int(self.prompts_table.item(row, 0).text())
+        prompt = db.get_prompt_by_id(prompt_id)
+        
+        if not prompt:
+            return
+        
+        dialog = PromptDialog(self, prompt)
+        if dialog.exec_() == QDialog.Accepted:
+            prompt_text, tags = dialog.get_data()
+            if prompt_text:
+                db.update_prompt(prompt_id, prompt_text, tags)
+                self.load_prompts()
+                self.load_prompts_table()
+                QMessageBox.information(self, "Успех", "Промт обновлен")
+    
+    def delete_prompt(self):
+        """Удаляет выбранный промт."""
+        selected_rows = self.prompts_table.selectionModel().selectedRows()
+        if not selected_rows:
+            QMessageBox.warning(self, "Ошибка", "Выберите промт для удаления")
+            return
+        
+        row = selected_rows[0].row()
+        prompt_id = int(self.prompts_table.item(row, 0).text())
+        prompt_text = self.prompts_table.item(row, 2).text()
+        
+        reply = QMessageBox.question(
+            self, "Подтверждение",
+            f"Удалить промт?\n\n{prompt_text[:100]}...",
+            QMessageBox.Yes | QMessageBox.No
+        )
+        
+        if reply == QMessageBox.Yes:
+            db.delete_prompt(prompt_id)
+            self.load_prompts()
+            self.load_prompts_table()
+            QMessageBox.information(self, "Успех", "Промт удален")
     
     def show_models_context_menu(self, position):
         """Показывает контекстное меню для таблицы моделей."""

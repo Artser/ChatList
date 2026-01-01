@@ -148,15 +148,22 @@ class BaseAPIClient(ABC):
             # Пробрасываем APIError как есть
             raise
         except requests.exceptions.Timeout:
-            error_msg = "Таймаут при запросе. Сервер не ответил вовремя"
+            error_msg = f"Таймаут при запросе к {self.api_url}. Сервер не ответил за {self.timeout} секунд"
             logger.error(error_msg)
             raise APIError(error_msg)
-        except requests.exceptions.ConnectionError:
-            error_msg = "Ошибка подключения. Проверьте интернет-соединение"
-            logger.error(error_msg)
+        except requests.exceptions.ConnectionError as e:
+            # Более детальная информация об ошибке подключения
+            error_details = str(e)
+            if "NameResolution" in error_details or "DNS" in error_details:
+                error_msg = f"Ошибка DNS. Не удается найти сервер {self.api_url}. Проверьте интернет-соединение"
+            elif "refused" in error_details.lower():
+                error_msg = f"Соединение отклонено сервером {self.api_url}. Сервер может быть недоступен"
+            else:
+                error_msg = f"Ошибка подключения к {self.api_url}. Проверьте интернет-соединение и доступность сервера"
+            logger.error(f"{error_msg}. Детали: {error_details}")
             raise APIError(error_msg)
         except requests.exceptions.RequestException as e:
-            error_msg = f"Ошибка сети: {str(e)}"
+            error_msg = f"Ошибка сети при запросе к {self.api_url}: {str(e)}"
             logger.error(error_msg)
             raise APIError(error_msg)
         except (KeyError, ValueError) as e:
@@ -245,6 +252,10 @@ class GroqClient(BaseAPIClient):
 
 class OpenRouterClient(BaseAPIClient):
     """Клиент для OpenRouter API."""
+    
+    def __init__(self, api_key: str, api_url: str, timeout: int = 60):
+        """Инициализация с увеличенным таймаутом для OpenRouter."""
+        super().__init__(api_key, api_url, timeout)
     
     def _get_headers(self) -> Dict[str, str]:
         """Заголовки для OpenRouter."""
