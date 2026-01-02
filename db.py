@@ -98,6 +98,26 @@ def init_database():
         CREATE INDEX IF NOT EXISTS idx_settings_key ON settings(key)
     """)
     
+    # Таблица prompt_versions для хранения истории улучшений
+    cursor.execute("""
+        CREATE TABLE IF NOT EXISTS prompt_versions (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            original_prompt_id INTEGER,
+            improved_prompt TEXT NOT NULL,
+            model_used TEXT,
+            created_at TEXT NOT NULL DEFAULT CURRENT_TIMESTAMP,
+            FOREIGN KEY (original_prompt_id) REFERENCES prompts(id) ON DELETE SET NULL
+        )
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_prompt_versions_prompt ON prompt_versions(original_prompt_id)
+    """)
+    
+    cursor.execute("""
+        CREATE INDEX IF NOT EXISTS idx_prompt_versions_created ON prompt_versions(created_at)
+    """)
+    
     conn.commit()
     conn.close()
 
@@ -380,6 +400,57 @@ def set_setting(key: str, value: str) -> bool:
     conn.commit()
     conn.close()
     return True
+
+
+# ==================== Операции для prompt_versions ====================
+
+def create_prompt_version(original_prompt_id: Optional[int], improved_prompt: str, model_used: Optional[str] = None) -> int:
+    """Создает новую версию улучшенного промта и возвращает его ID."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "INSERT INTO prompt_versions (original_prompt_id, improved_prompt, model_used) VALUES (?, ?, ?)",
+        (original_prompt_id, improved_prompt, model_used)
+    )
+    version_id = cursor.lastrowid
+    conn.commit()
+    conn.close()
+    return version_id
+
+
+def get_prompt_versions_by_prompt(prompt_id: int) -> List[Dict]:
+    """Возвращает все версии улучшений для указанного промта."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute(
+        "SELECT * FROM prompt_versions WHERE original_prompt_id = ? ORDER BY created_at DESC",
+        (prompt_id,)
+    )
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def get_all_prompt_versions() -> List[Dict]:
+    """Возвращает все версии улучшенных промтов."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("SELECT * FROM prompt_versions ORDER BY created_at DESC")
+    rows = cursor.fetchall()
+    conn.close()
+    return [dict(row) for row in rows]
+
+
+def delete_prompt_version(version_id: int) -> bool:
+    """Удаляет версию улучшенного промта."""
+    conn = get_db_connection()
+    cursor = conn.cursor()
+    cursor.execute("DELETE FROM prompt_versions WHERE id = ?", (version_id,))
+    success = cursor.rowcount > 0
+    conn.commit()
+    conn.close()
+    return success
+
 
 
 
