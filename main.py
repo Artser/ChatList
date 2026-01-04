@@ -21,6 +21,7 @@ import db
 import models
 import network
 import prompt_improver
+import version
 import logging
 
 logger = logging.getLogger(__name__)
@@ -403,7 +404,7 @@ class MainWindow(QMainWindow):
     
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("ChatList - Сравнение ответов нейросетей")
+        self.setWindowTitle(f"ChatList v{version.__version__} - Сравнение ответов нейросетей")
         self.setGeometry(100, 100, 1400, 900)
         
         # Устанавливаем иконку приложения
@@ -1579,8 +1580,8 @@ class MainWindow(QMainWindow):
     
     def show_about(self):
         """Показывает диалог 'О программе'."""
-        about_text = """
-        <h2>ChatList v1.0</h2>
+        about_text = f"""
+        <h2>ChatList v{version.__version__}</h2>
         <p><b>Приложение для сравнения ответов разных нейросетей на один промт</b></p>
         
         <p>ChatList позволяет отправлять один и тот же промт в несколько нейросетей одновременно и сравнивать их ответы.</p>
@@ -1607,7 +1608,7 @@ class MainWindow(QMainWindow):
             <li>Requests</li>
         </ul>
         
-        <p><i>Версия: 1.0</i></p>
+        <p><i>Версия: {version.__version__}</i></p>
         """
         
         msg = QMessageBox(self)
@@ -1620,6 +1621,8 @@ class MainWindow(QMainWindow):
 
 def main():
     """Точка входа в приложение."""
+    logger.info(f"Запуск ChatList v{version.__version__}")
+    
     app = QApplication(sys.argv)
     
     # Устанавливаем иконку для всего приложения

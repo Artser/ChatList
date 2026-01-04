@@ -1,38 +1,28 @@
 # -*- mode: python ; coding: utf-8 -*-
-import version
 
-block_cipher = None
-
-# Получаем версию из version.py
-app_version = version.__version__
-app_name = f'ChatList_v{app_version}'
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=['version'],
+    hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[],
-    win_no_prefer_redirects=False,
-    win_private_assemblies=False,
-    cipher=block_cipher,
     noarchive=False,
+    optimize=0,
 )
-
-pyz = PYZ(a.pure, a.zipped_data, cipher=block_cipher)
+pyz = PYZ(a.pure)
 
 exe = EXE(
     pyz,
     a.scripts,
     a.binaries,
-    a.zipfiles,
     a.datas,
     [],
-    name=app_name,
+    name='ChatList_v1.0.0',
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -45,13 +35,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='app.ico',
+    icon=['app.ico'],
 )
-
-
-
-
-
-
-
-

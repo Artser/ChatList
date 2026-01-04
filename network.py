@@ -9,6 +9,7 @@ from typing import Optional, Dict, Any, List, Tuple
 from abc import ABC, abstractmethod
 import requests
 from dotenv import load_dotenv
+import version
 
 # Загружаем переменные окружения из .env и .env.local
 load_dotenv()  # Загружает .env
@@ -27,13 +28,14 @@ if not os.path.exists(log_dir):
 log_file = os.path.join(log_dir, f"chatlist_{datetime.now().strftime('%Y%m%d')}.log")
 logging.basicConfig(
     level=logging.INFO,
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
+    format=f'%(asctime)s - ChatList v{version.__version__} - %(name)s - %(levelname)s - %(message)s',
     handlers=[
         logging.FileHandler(log_file, encoding='utf-8'),
         logging.StreamHandler()  # Также выводим в консоль
     ]
 )
 logger = logging.getLogger(__name__)
+logger.info(f"ChatList v{version.__version__} - Инициализация модуля network")
 
 
 class APIError(Exception):

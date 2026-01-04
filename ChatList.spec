@@ -1,12 +1,16 @@
 # -*- mode: python ; coding: utf-8 -*-
+import version
 
+# Получаем версию из version.py
+app_version = version.__version__
+app_name = f'ChatList_v{app_version}'
 
 a = Analysis(
     ['main.py'],
     pathex=[],
     binaries=[],
     datas=[],
-    hiddenimports=[],
+    hiddenimports=['version'],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
@@ -22,7 +26,7 @@ exe = EXE(
     a.binaries,
     a.datas,
     [],
-    name='ChatList',
+    name=app_name,
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
@@ -35,5 +39,5 @@ exe = EXE(
     target_arch=None,
     codesign_identity=None,
     entitlements_file=None,
-    icon='NONE',
+    icon='app.ico',
 )
