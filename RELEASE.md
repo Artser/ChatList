@@ -126,3 +126,4 @@ ChatList/
 
 Для автоматической публикации при создании тега используйте GitHub Actions workflow (см. `.github/workflows/release.yml`).
 
+

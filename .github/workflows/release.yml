@@ -77,3 +77,4 @@ jobs:
         asset_name: ChatList_Setup_v${{ env.VERSION }}.exe
         asset_content_type: application/octet-stream
 
+
